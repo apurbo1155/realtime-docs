@@ -158,21 +158,7 @@ app.post('/api/save-doc', async (req, res) => {
 // In-memory document storage fallback
 const memoryDocs = new Map();
 
-// Explicit route for editor
-app.get('/editor.html', (req, res) => {
-  const filePath = path.join(__dirname, 'public', 'editor.html');
-  console.log(`Attempting to serve editor.html from: ${filePath}`);
-  
-  if (fs.existsSync(filePath)) {
-    console.log('File exists, sending...');
-    res.sendFile(filePath);
-  } else {
-    console.log('File not found');
-    res.status(404).send('Editor file not found');
-  }
-});
-
-// Health check endpoint
+// Health check endpoint with DB status
 app.get('/api/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'memory';
   res.json({
@@ -182,7 +168,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Save document endpoint with memory fallback
+// Document saving endpoint (single implementation)
 app.post('/api/save-doc', async (req, res) => {
   try {
     const { room, content } = req.body;
@@ -231,8 +217,26 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Validate required environment variables
+if (!process.env.MONGODB_URI) {
+  console.error('FATAL: MONGODB_URI environment variable is not defined');
+  process.exit(1);
+}
+
 const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`MongoDB connection state: ${mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'}`);
+  console.log(`Allowed CORS origins: ${process.env.ALLOWED_ORIGINS}`);
+});
+
+// Enhanced error handling
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled rejection:', err);
+  process.exit(1);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err);
+  process.exit(1);
 });
