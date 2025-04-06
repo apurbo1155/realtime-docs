@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Editor</title>
+  <!-- Self-contained styles with optional enhancement -->
+  <style>
+    /* Core editor styles (always present) */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.5;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    #editor {
+      background: white;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 24px;
+      margin: 0 auto;
+      max-width: 800px;
+      min-height: 500px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .format-btn {
+      background: #f1f3f5;
+      border: none;
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-right: 4px;
+      cursor: pointer;
+    }
+    #saveAsBtn {
+      background: #e7f5ff;
+      color: #228be6;
+    }
+    /* Will be enhanced by Tailwind if loaded */
+  </style>
+  <script>
+    // Simple non-blocking Tailwind load attempt
+    (function() {
+      const tailwindLink = document.createElement('link');
+      tailwindLink.href = 'https://cdn.tailwindcss.com';
+      tailwindLink.rel = 'stylesheet';
+      tailwindLink.onerror = () => {
+        console.log('Tailwind not available - using built-in styles');
+      };
+      document.head.appendChild(tailwindLink);
+    })();
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    #editor {
+      min-height: 80vh;
+      outline: none;
+    }
+    .user-badge {
+      transition: all 0.3s ease;
+    }
+    .user-badge:hover {
+      transform: scale(1.1);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Header -->
+  <header class="bg-white shadow-sm">
+    <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+      <h1 class="text-xl font-bold text-blue-600">
+        <i class="fas fa-file-alt mr-2"></i> Real-Time Docs
+        <span id="storageIndicator" class="ml-2 text-xs font-normal px-2 py-1 rounded-full bg-gray-200">
+          <i class="fas fa-database"></i> <span>Loading...</span>
+        </span>
+      </h1>
+      <div id="roomName" class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full"></div>
+    </div>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="bg-white border-b">
+    <div class="container mx-auto px-4 py-2 flex space-x-2">
+      <button class="format-btn p-2 hover:bg-gray-100 rounded" data-command="bold">
+        <i class="fas fa-bold"></i>
+      </button>
+      <button class="format-btn p-2 hover:bg-gray-100 rounded" data-command="italic">
+        <i class="fas fa-italic"></i>
+      </button>
+      <button class="format-btn p-2 hover:bg-gray-100 rounded" data-command="underline">
+        <i class="fas fa-underline"></i>
+      </button>
+      <div class="border-l mx-2"></div>
+      <button class="format-btn p-2 hover:bg-gray-100 rounded" data-command="insertUnorderedList">
+        <i class="fas fa-list-ul"></i>
+      </button>
+      <button class="format-btn p-2 hover:bg-gray-100 rounded" data-command="insertOrderedList">
+        <i class="fas fa-list-ol"></i>
+      </button>
+      <div class="border-l mx-2"></div>
+      <button id="saveAsBtn" class="p-2 hover:bg-gray-100 rounded text-blue-600">
+        <i class="fas fa-file-export"></i> Export as TXT
+      </button>
+    </div>
+  </div>
+
+  <!-- Editor Area -->
+  <div class="container mx-auto px-4 py-6">
+    <div 
+      id="editor" 
+      contenteditable="true" 
+      class="prose max-w-4xl mx-auto bg-white p-8 rounded shadow"
+    >
+      Start collaborating in real-time...
+    </div>
+  </div>
+
+  <!-- Collaborators Panel -->
+  <div class="fixed bottom-4 right-4 bg-white p-3 rounded-lg shadow-lg">
+    <h3 class="font-semibold mb-2 text-sm text-gray-600">
+      <i class="fas fa-users mr-1"></i> Collaborators
+    </h3>
+    <div id="collaborators" class="flex flex-wrap gap-2">
+      <!-- User badges will appear here -->
+    </div>
+  </div>
+
+  <script>
+    // Get room from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const room = urlParams.get('room');
+    document.getElementById('roomName').textContent = room || 'No room';
+
+    // Connect to Socket.IO
+    const socket = io();
+    const editor = document.getElementById('editor');
+    let userId = Math.random().toString(36).substring(2, 8);
+    let userColor = `hsl(${Math.floor(Math.random() * 360)}, 70%, 60%)`;
+
+    // Join room
+    if (room) {
+      socket.emit('join_room', room);
+    }
+
+    // Handle document updates
+    editor.addEventListener('input', () => {
+      if (room) {
+        socket.emit('document_update', {
+          room,
+          content: editor.innerHTML
+        });
+      }
+    });
+
+    // Handle format buttons
+    document.querySelectorAll('.format-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const command = btn.dataset.command;
+        document.execCommand(command, false, null);
+        editor.focus();
+      });
+    });
+
+    // Handle incoming updates
+    socket.on('sync_update', (data) => {
+      if (data.userId !== socket.id) {
+        editor.innerHTML = data.content;
+      }
+    });
+
+    // Handle user presence
+    socket.on('user_joined', (data) => {
+      addUserBadge(data.userId);
+    });
+
+    socket.on('user_left', (data) => {
+      removeUserBadge(data.userId);
+    });
+
+    function addUserBadge(id) {
+      if (!document.getElementById(`user-${id}`)) {
+        const badge = document.createElement('div');
+        badge.id = `user-${id}`;
+        badge.className = 'user-badge w-8 h-8 rounded-full flex items-center justify-center text-white text-xs';
+        badge.style.backgroundColor = `hsl(${Math.floor(Math.random() * 360)}, 70%, 60%)`;
+        badge.textContent = id.substring(0, 2);
+        badge.title = `User ${id}`;
+        document.getElementById('collaborators').appendChild(badge);
+      }
+    }
+
+    function removeUserBadge(id) {
+      const badge = document.getElementById(`user-${id}`);
+      if (badge) {
+        badge.remove();
+      }
+    }
+
+    // Save functionality
+    const saveBtn = document.getElementById('saveBtn');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        try {
+          const response = await fetch('/api/save-doc', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              room,
+              content: editor.innerHTML
+            })
+          });
+          
+          const result = await response.json();
+          if (response.ok) {
+            alert(`Document saved successfully! ID: ${result.documentId}`);
+          } else {
+            // Fallback to localStorage if database is unavailable
+            localStorage.setItem(`doc_${room}`, editor.innerHTML);
+            alert('Saved to browser storage (MongoDB unavailable)');
+          }
+        } catch (err) {
+          // Fallback to localStorage if request fails
+          localStorage.setItem(`doc_${room}`, editor.innerHTML);
+          alert('Saved to browser storage (Network error)');
+          console.error('Save error:', err);
+        }
+      });
+    }
+
+    // Update storage indicator
+    async function updateStorageIndicator() {
+      const indicator = document.getElementById('storageIndicator');
+      try {
+        const health = await fetch('/api/health');
+        const data = await health.json();
+        if (data.dbState === 'connected') {
+          indicator.innerHTML = '<i class="fas fa-database"></i> <span>Cloud Storage</span>';
+          indicator.className = 'ml-2 text-xs font-normal px-2 py-1 rounded-full bg-green-100 text-green-800';
+        } else {
+          indicator.innerHTML = '<i class="fas fa-laptop"></i> <span>Local Storage</span>';
+          indicator.className = 'ml-2 text-xs font-normal px-2 py-1 rounded-full bg-yellow-100 text-yellow-800';
+        }
+      } catch {
+        indicator.innerHTML = '<i class="fas fa-laptop"></i> <span>Offline</span>';
+        indicator.className = 'ml-2 text-xs font-normal px-2 py-1 rounded-full bg-red-100 text-red-800';
+      }
+    }
+
+    // Load from localStorage if available
+    if (room && localStorage.getItem(`doc_${room}`)) {
+      editor.innerHTML = localStorage.getItem(`doc_${room}`);
+    }
+
+    // Initialize and update storage indicator every 5 seconds
+    updateStorageIndicator();
+    setInterval(updateStorageIndicator, 5000);
+
+    const saveAsBtn = document.getElementById('saveAsBtn');
+    if (saveAsBtn) {
+      saveAsBtn.addEventListener('click', () => {
+        // Get clean text content from editor div
+        const plainText = editor.innerText || editor.textContent;
+      
+        // Create and download text file
+        const blob = new Blob([plainText], { 
+          type: 'text/plain;charset=utf-8' 
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `document-${room || 'untitled'}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    // Load document on page load
+    if (room && localStorage.getItem(`doc_${room}`)) {
+      editor.innerHTML = localStorage.getItem(`doc_${room}`);
+    }
+  </script>
+</body>
+</html>

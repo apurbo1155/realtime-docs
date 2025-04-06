@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Docs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <style>
+    .bg-pattern {
+      background-image: url('https://images.pexels.com/photos/316466/pexels-photo-316466.jpeg');
+      background-size: cover;
+      background-position: center;
+      opacity: 0.1;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div class="bg-pattern fixed inset-0"></div>
+  <div class="relative z-10 max-w-md mx-auto p-8 bg-white rounded-lg shadow-xl mt-12">
+    <h1 class="text-3xl font-bold mb-6 text-blue-600 flex items-center">
+      <i class="fas fa-file-alt mr-2"></i> Real-Time Docs
+    </h1>
+    <div class="mb-6">
+      <input 
+        id="roomInput"
+        type="text" 
+        placeholder="Enter room name" 
+        class="w-full p-3 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      >
+    </div>
+    <button 
+      id="joinBtn"
+      class="w-full p-3 bg-blue-600 text-white rounded hover:bg-blue-700 transition flex items-center justify-center"
+    >
+      <i class="fas fa-sign-in-alt mr-2"></i> Start Editing
+    </button>
+    <div class="mt-4 text-sm text-gray-500">
+      <i class="fas fa-info-circle mr-1"></i> Share the room name to collaborate in real-time
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('joinBtn').addEventListener('click', () => {
+      const room = document.getElementById('roomInput').value.trim();
+      if (room) {
+        window.location.href = `/editor.html?room=${encodeURIComponent(room)}`;
+      } else {
+        alert('Please enter a room name');
+      }
+    });
+
+    document.getElementById('roomInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('joinBtn').click();
+      }
+    });
+  </script>
+</body>
+</html>
